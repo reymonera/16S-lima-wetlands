@@ -7,3 +7,8 @@ This computational pipeline is designed for comprehensive microbiome analysis of
 - Cutadapt was used for these primers only.
 - Any other treatment will have to be done using quality plot info from DADA2.
 
+## 04/02/2025 - Installing the conda environment
+´´´
+conda env create -f dada2_env.yaml
+conda activate dada2_env
+´´´ 
