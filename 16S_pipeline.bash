@@ -42,11 +42,13 @@ fi
 
 # Create output directory if it doesn't exist
 mkdir -p "$output_dir"
-ls *_001.fastq.gz | cut -f1 -d "_" > samples
+
+ls $input_dir*_R1_001.fastq.gz | cut -f1 -d "_" > $output_dir/samples
+cp $database $output_dir
 
 # Generate R script for DADA2 and Phyloseq analysis
-r_script="$output_dir/dada2_pipeline_phyloseq.R"
-cat <<EOF > "$r_script"
+r_script_1="$output_dir/1_dada2_quality_plot.R"
+cat <<EOF > "$r_script_1"
 library(dada2)
 library(phyloseq)
 library(ggplot2)
@@ -58,6 +60,9 @@ output_dir <- "$output_dir"
 db_file <- "$database"
 threads <- $threads
 overlap <- $overlap
+
+preAbsolutePath <- getwd()
+setwd("$output_dir")
 
 # Ensure the database file exists
 if (!file.exists(db_file)) {
@@ -71,8 +76,10 @@ samples <- scan("samples", what="character")
 
 # We will create the variables for hosting the filtered reads,
 # the filtered reads and the reads themselves.
-forward_reads <- paste0(samples, "_S1_L002_R1_001.fastq.gz")
-reverse_reads <- paste0(samples, "_S1_L002_R2_001.fastq.gz")
+cat("\nGenerating variables for forward and reverse reads...\n")
+
+forward_reads <- paste0(preAbsolutePath, "/", samples, "_S1_L002_R1_001.fastq.gz")
+reverse_reads <- paste0(preAbsolutePath, "/", samples, "_S1_L002_R2_001.fastq.gz")
 
 filtered_forward_reads <- paste0(samples, "_sub_R1_filtered.fq.gz")
 filtered_reverse_reads <- paste0(samples, "_sub_R2_filtered.fq.gz")
@@ -81,21 +88,35 @@ sample_count <- length(forward_reads)
 group_size <- ceiling(sample_count / 4)
 
 cat("\nGenerating quality plots for 4 sample groups...\n")
-for (i in 1:4) {
+for (i in 1:sample_count) {
   start_index <- ((i - 1) * group_size) + 1
-  end_index <- min(i * group_size, sample_count)
-  
+  end_index <- sample_count
+
   if (start_index <= sample_count) {
-    forward_reads <- forward_reads[start_index:end_index]
-    reverse_reads <- reverse_reads[start_index:end_index]
-    
-    pdf(file.path(output_dir, paste0("quality_group_", i, ".pdf")))
-    plotQualityProfile(forward_reads)
-    plotQualityProfile(reverse_reads)
+    #quality_forward_reads <- forward_reads[start_index:end_index]
+    #quality_reverse_reads <- reverse_reads[start_index:end_index]
+
+    #print(quality_forward_reads)
+
+    pdf(file.path(paste0("forward_quality_group_", i, ".pdf")))
+    plotQualityProfile(forward_reads[start_index:end_index])
+    dev.off()
+
+    pdf(file.path(paste0("reverse_quality_group_", i, ".pdf")))
+    plotQualityProfile(reverse_reads[start_index:end_index])
     dev.off()
   }
 }
+cat("\nFinishing...\n")
 
+EOF
+
+r_script_2="$output_dir/2_dada2_quality_management.R"
+cat <<EOF > "$r_script_2"
+library(dada2)
+library(phyloseq)
+library(ggplot2)
+library(vegan)
 # Prompt user for truncLen values: This value has been always the most decisive
 # when figuring out these analysis
 cat("\nInspect the quality profiles and choose truncLen values (e.g., 240,160):\n")
@@ -146,24 +167,26 @@ summary_tab <- data.frame(row.names=samples, dada2_input = filtered_out[,1], fil
 write.table(summary_tab, "read-count-tracking.tsv", quote=FALSE, sep="\t", col.names=NA)
 
 # Assign taxonomy with assignTaxonomy
-taxa <- assignTaxonomy(seqtab.nochim, db_file, multithread=15)
+aTaxonomyTaxa <- assignTaxonomy(seqtab.nochim, db_file, multithread=15)
+
+tax_info <- aTaxonomyTaxa # HERE IT SHOULD CHANGE ACCORDING TO THE USED TAXONOMY ASSIGNMENT METHOD
 
 # Assign taxonomy with DECIPHER
 load("SILVA_SSU_r138_2019.RData")
 library(DECIPHER)
 dna <- DNAStringSet(getSequences(seqtab.nochim))
-tax_info <- IdTaxa(test=dna, trainingSet=trainingSet, strand="both", processors=NULL)
+decipherTaxa <- IdTaxa(test=dna, trainingSet=trainingSet, strand="both", processors=NULL)
 
 # Generate plots to compare assign taxonomy methods:
-dada_taxa_df <- as.data.frame(taxa) %>%
+dada_taxa_df <- as.data.frame(aTaxonomyTaxa) %>%
   rownames_to_column(var="ASV") %>%
   pivot_longer(cols=-ASV, names_to="Rank", values_to="Taxon") %>%
   filter(!is.na(Taxon))
 
 decipher_taxa_df <- data.frame(
-  ASV = names(tax_info),
-  Rank = sapply(tax_info, function(x) x$rank[1]),  # Get the highest confident rank
-  Taxon = sapply(tax_info, function(x) x$taxon[1]) # Get the assigned taxon name
+  ASV = names(decipherTaxa),
+  Rank = sapply(decipherTaxa, function(x) x$rank[1]),  # Get the highest confident rank
+  Taxon = sapply(decipherTaxa, function(x) x$taxon[1]) # Get the assigned taxon name
 )
 
 dada_summary <- dada_taxa_df %>%
@@ -187,7 +210,41 @@ print(ggplot(tax_summary, aes(x=Taxon, y=Count, fill=Method)) +
        fill="Method"))
 dev.off()
 
+# Assigning new names to the ASVs
+asv_seqs <- colnames(seqtab.nochim)
+asv_headers <- vector(dim(seqtab.nochim)[2], mode="character")
+
+for (i in 1:dim(seqtab.nochim)[2]) {
+    asv_headers[i] <- paste(">ASV", i, sep="_")
+}
+
+# Writing FASTA from our ASVs
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+write(asv_fasta, "ASVs.fa")
+
+# Tabla de conteo:
+asv_tab <- t(seqtab.nochim)
+row.names(asv_tab) <- sub(">", "", asv_headers)
+write.table(asv_tab, "ASVs_counts.tsv", sep="\t", quote=F, col.names=NA)
+
+ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
+
+asv_tax <- t(sapply(tax_info, function(x) {
+    m <- match(ranks, x$rank)
+    taxa <- x$taxon[m]
+    taxa[startsWith(taxa, "unclassified_")] <- NA
+    taxa
+}))
 ##### ------------- #####
+EOF
+
+echo "Generated R script for DADA2 quality plot at: $r_script_1"
+echo "Running in R"
+Rscript $r_script_1
+echo "Finished"
+
+#echo "Generated R script for DADA2 quality at: $r_script_2"
+#Rscript $output_dir/$r_script_2
 
 # Divide samples into four equal groups for quality plots
 sample_count <- length(fnFs)
