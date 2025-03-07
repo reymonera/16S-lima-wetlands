@@ -12,3 +12,9 @@ This computational pipeline is designed for comprehensive microbiome analysis of
 conda env create -f dada2_env.yaml
 conda activate dada2_env
 ``` 
+
+## 06/03/2025 - Adding a v2 of the pipeline
+- Still needs to refine the decontamination part.
+- Can perform 4 types of plots.
+- Can give output tables to customize locally.
+- Better error handling?
