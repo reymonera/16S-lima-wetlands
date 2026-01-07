@@ -1,0 +1,17 @@
+overlap=12
+trunclen_fr=225
+trunclen_rev=210
+pool=pseudo
+minBoot=80
+method_pord=NMDS
+color=lago
+col_color=color_lago
+alpha_x=mes
+alpha_color=lago
+alpha_col_color=color_lago
+alpha_measure_1=Chao1
+alpha_measure_2=Shannon
+tax_category=lago
+tax_category_color=color_lago
+tax_min_abundance=5
+tax_rank_specific=genus

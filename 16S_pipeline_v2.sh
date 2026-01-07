@@ -258,9 +258,31 @@ for (run_index in seq_along(param_sets)) {
         ), "run_parameters.txt", row.names = FALSE, quote = FALSE, sep = "\t")
         
         # Derreplication
-        derep_forward <- derepFastq(filtered_forward_reads, verbose=TRUE)
+        #derep_forward <- derepFastq(filtered_forward_reads, verbose=TRUE)
+        #names(derep_forward) <- samples
+        #derep_reverse <- derepFastq(filtered_reverse_reads, verbose=TRUE)
+        #names(derep_reverse) <- samples
+
+        # Process samples one at a time (memory efficient)
+        dada_forward <- vector("list", length(samples))
+        dada_reverse <- vector("list", length(samples))
+        derep_forward <- vector("list", length(samples))
+        derep_reverse <- vector("list", length(samples))
+
+        for (i in seq_along(samples)) {
+            cat(sprintf("Processing sample %d of %d: %s\n", i, length(samples), samples[i]))
+            
+            derep_forward[[i]] <- derepFastq(filtered_forward_reads[i])
+            derep_reverse[[i]] <- derepFastq(filtered_reverse_reads[i])
+            
+            dada_forward[[i]] <- dada(derep_forward[[i]], err=err_forward_reads, multithread=threads)
+            dada_reverse[[i]] <- dada(derep_reverse[[i]], err=err_reverse_reads, multithread=threads)
+            
+            gc()
+        }
+        names(dada_forward) <- samples
+        names(dada_reverse) <- samples
         names(derep_forward) <- samples
-        derep_reverse <- derepFastq(filtered_reverse_reads, verbose=TRUE)
         names(derep_reverse) <- samples
         
         # Inferring ASVs with DADAs algorithm
@@ -659,10 +681,12 @@ for (run_index in seq_along(param_sets)) {
     # Return to original directory
     setwd("..")
 }
-
+echo "Analysis complete!"
 EOF
 
 # Execute the R script with parameters
+echo "Starting DADA2 analysis..."
 Rscript "$r_script" "$input_dir" "$output_dir" "$database" "$threads" "$params_file" "$metadata_file"
+echo "Analysis complete!"
 
 

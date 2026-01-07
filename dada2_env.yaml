@@ -1,0 +1,17 @@
+name: dada2_env
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+  - r
+dependencies:
+  - cutadapt
+  - r-tidyverse
+  - r-vegan
+  - r-dendextend
+  - r-viridis
+  - bioconductor-decipher
+  - bioconductor-deseq2
+  - bioconductor-decontam
+  - bioconductor-dada2
+  - bioconductor-phyloseq
