@@ -19,7 +19,7 @@ conda activate dada2_env
 - Can give output tables to customize locally.
 - Better error handling?
 
-## 07/01/2026 - Adding a v2 of the pipeline
+## 07/01/2026 - Adding missing complementary files
 - Somehow I didn't uploaded the environment file nor the parameters file.
 - The idea is that you need to elaborate the parameters file.
 - Each portion can be a new run.
