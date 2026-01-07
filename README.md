@@ -18,3 +18,8 @@ conda activate dada2_env
 - Can perform 4 types of plots.
 - Can give output tables to customize locally.
 - Better error handling?
+
+## 07/01/2026 - Adding a v2 of the pipeline
+- Somehow I didn't uploaded the environment file nor the parameters file.
+- The idea is that you need to elaborate the parameters file.
+- Each portion can be a new run.
